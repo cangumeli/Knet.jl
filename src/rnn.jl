@@ -675,8 +675,8 @@ function rnntest(r::RNN, ws, x, hx=nothing, cx=nothing;
     #@assert (r.inputMode == 0 || H == X)
     L = Int(r.numLayers) * (r.direction == 1 ? 2 : 1)
     hsize = (H, B, L)
-    @assert hx == nothing || size(hx) == hsize
-    @assert cx == nothing || size(cx) == hsize
+    @assert hx == nothing || size(hx) == hsize "$(size(hx)) != $hsize"
+    @assert cx == nothing || size(cx) == hsize "$(size(cx)) != $hsize"
     h = hx==nothing ? fill!(similar(x,hsize),0) : hx
     hs = [ h[:,:,l] for l=1:L ]
     ys = []
@@ -824,71 +824,57 @@ function rnntest(r::RNN, ws, x, hx=nothing, cx=nothing;
     return (y,hyout,cyout,nothing)
 end
 
-# TODO: WIP
 function rnntest_bs(batchSizes, r::RNN, w, x,
                     hx=nothing, cx=nothing;
                     # handle=cudnnhandle(), training=false,
                     hy = (hx != nothing),
                     cy = (cx != nothing && r.mode == 2),
                     o...)
-    # TODO: fix this implementation
-    error("Implementation of batchSizes is not completed in CPU")
-    # Here needs reshaping hidden sizes
-    if length(Set{Int}(batchSizes)) == 1
-        x_ = reshape(x, (r.inputSize, div(size(x,2), batchSizes[1]), batchSizes[1]))
-        y,hy,cy,rs = rnntest(r, w, x_, hx, cx; hy=hy, cy=cy, o...)
-        y = reshape(y, (size(y, 1), size(y,2) * size(y,3)))
-        return y, hy, cy, rs
-    end
-    hrem(h, bs1, bs2) = (bs2 < bs1) ? (h[:, 1:bs1-bs2+1, l] for l=1:size(h,3)) : nothing
-    hnext(h, bs1, bs2) = (bs2 < bs1) ? h[:, 1:bs2, :] : h
-    hrems = []
-    ys = []
-    crems = []
     ind = 1
-    for i = 1:length(batchSizes)
-        xt = x[:, ind:ind+batchSizes[i]-1]
-        xt = reshape(xt, size(xt)..., 1)
-        y, hx, cx = rnntest(r, w, xt, hx, cx;
-                            hy=true, cy=true)
-        if i > 1
-            hr = hrem(hx,batchSizes[i],batchSizes[i+1])
-            if hr !== nothing
-                hy && push!(hrems, hr...)
-                hx = hnext(hx, batchSizes[i],batchSizes[i+1])
+    ys = []
+    hprev = []
+    cprev = []
+    ndx = ndims(x)
+    for (i,bs) in enumerate(batchSizes)
+        xt = x[:, ind:ind+bs-1]
+        xt = reshape(xt, (size(xt)..., 1))
+        y, hx, cx, _  = rnntest(r, w, xt, hx, cx; hy=true, cy=true)
+        push!(ys, reshape(y, size(y,1,2)))
+        ind += bs
+        if i < length(batchSizes) && batchSizes[i+1] < bs
+            if hx !== nothing
+                hy && push!(hprev, hx[:, batchSizes[i+1]+1:end, :])
+                hx = hx[:, 1:batchSizes[i+1], :] 
             end
-            if r.mode == 2
-                cr = crem(h,batchSizes[i], batchSizes[i+1])
-                if cr !== nothing 
-                    cy && push!(crems, cr...)
-                    cx = hnext(cx, batchSizes[i],batchSizes[i+1])
-                end
+            if cx !== nothing
+                cy && push!(cprev ,cx[:, batchSizes[i+1]+1:end, :])
+                cx = cx[:, 1:batchSizes[i+1], :]
             end
         end
-        ind += batchSizes[i]
-        push!(ys, reshape(y, size(y,1,2))) #only last layer output
     end
-    # reconstruct the output
-    ## hx has size (h,bs[end],l)
-    ## hrems has (hs,bsi) dimensional matrices
-    hout(hx, hy, hrems) = begin
-        nlayers = size(hx, 3)
-        if hy
-            hts = []
-            for i = 1:nlayers
-                push!(hts, hy[:,:,i])
+    # Output
+    y = hcat(ys...)
+    # Hidden state
+    @inline hout(hprev, hx, hy) = begin
+        if length(hprev) > 0
+            nl = r.numLayers
+            # Collect layer hidden states
+            hls = []
+            for l = 1:nl
+                hs = Any[
+                    hx[:, :, l],
+                    (h[:, :, l] for h in reverse(hprev))...
+                ]
+                push!(hls, hcat(hs...))
             end
-            hyouts = []
-            for l = 1:nlayers
-                push!(hyouts, hcat(hts[l], reverse(hrems[l:nlayers:end-nlayers+l])...))
-            end
-            hsize = (size(hyouts[end])..., nlayers)
-            reshape(length(hyouts) > 1 ? hcat(hyouts...): hyouts[1], hsize)
+            # Merge layer hidden states
+            hyout = hcat(hls...)
+            reshape(hyout, (r.hiddenSize, batchSizes[1], nl))
         else
-            nothing
+            hy ? hx : nothing
         end
     end
-    return (hcat(ys...), hout(hx, hy, hrems), r.mode==2 ? hout(cx, cy, crems) : nothing, nothing)
+    return (y, hout(hprev, hx, hy), hout(cprev, cx, cy), nothing)
 end
 
 
