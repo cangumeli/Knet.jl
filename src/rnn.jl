@@ -834,7 +834,6 @@ function rnntest_bs(batchSizes, r::RNN, w, x,
     ys = []
     hprev = []
     cprev = []
-    ndx = ndims(x)
     for (i,bs) in enumerate(batchSizes)
         xt = x[:, ind:ind+bs-1]
         xt = reshape(xt, (size(xt)..., 1))

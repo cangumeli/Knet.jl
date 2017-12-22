@@ -67,23 +67,18 @@ rcpu=wcpu=x1cpu=x2cpu=x3cpu=hx1cpu=cx1cpu=hx2cpu=cx2cpu=hx3cpu=cx3cpu=nothing
         @test gchk(rnn1,[w,x3,hx3,cx3],r)
         @test gchk(rnn1,[wcpu,x3cpu,hx3cpu,cx3cpu],rcpu)
         for b in ([160],[80,80],[100,40,20])
-            #@testset "$b" begin
             hx3 = ka(randn(D,H,b[1],HL))
             cx3 = ka(randn(D,H,b[1],HL))
             hx3cpu = Array(hx3)
             cx3cpu = Array(cx3)
-            #@test eq(rnnforw(r,w,x3,hx3,cx3; batchSizes=b),
-             #        rnnforw(rcpu,wcpu,x3cpu,hx3cpu,cx3cpu; batchSizes=b))
-            #@test gchk(rnn1,[w,x3,hx3,cx3],r,b)
-            #@test gchk(rnn1,[wcpu,x3cpu,hx3cpu,cx3cpu],rcpu,b)
-            #end    
+            @test gchk(rnn1,[w,x3,hx3,cx3],r,b)
+            @test gchk(rnn1,[wcpu,x3cpu,hx3cpu,cx3cpu],rcpu,b)
         end
         
         # rnnparam, rnnparams
         for m in (1,2)
             for l in 1:L
                 for i in 1:(M==:lstm ? 8 : M==:gru ? 6 : 2)
-                    #@show M,L,I,l,i,m
                     @test rnnparam(r,w,l,i,m) == rnnparam(r,wcpu,l,i,m)
                 end
             end
@@ -92,7 +87,7 @@ rcpu=wcpu=x1cpu=x2cpu=x3cpu=hx1cpu=cx1cpu=hx2cpu=cx2cpu=hx3cpu=cx3cpu=nothing
     end # for
 end # @testset
 
-    @testset "batchSizes" begin
+    #=@testset "batchSizes" begin
         x = KnetArray(rand(10, 5+5+4+3))
         xcpu = Array(x)
         for M=(:relu,:tanh,:lstm,:gru), L=1:2, I=(:false,:true), BI=(:false#=:true=#)
@@ -112,11 +107,10 @@ end # @testset
                                  rnnforw(r, wcpu, xcpu; hy=true, cy=true, batchSizes=bs))
                     end
                 end
-        end
-    end
-end
+        end=#
+    #end
     
-#end # if gpu() >= 0
+end # if gpu() >= 0
 
 nothing
 
