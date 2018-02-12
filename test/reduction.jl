@@ -110,7 +110,7 @@ srand(42)
     end
 
     # all kind of reductions
-    for f in (sum,) # reduction_fns takes too much time
+    for f in (sum, ) # reduction_fns takes too much time
         for t in (Float32, Float64)
             for dim = MIN_DIM:MAX_DIM
                 # xsize = tuple(dim+MIN_SIZE-1:-1:MIN_SIZE...)
@@ -134,6 +134,42 @@ srand(42)
                         @test gradcheck(f,gx,c; rtol=TOL1)
                         @test isapprox(f(ax,c),Array(f(gx,c)))
                     end
+                end
+            end
+        end
+    end
+
+
+        info("Testing new functions")
+        for f in (std, var)# mean, var, std) # reduction_fns takes too much time
+            for t in (Float32, Float64)
+                @testset "new-reduction $f $t" begin
+                for dim = MIN_DIM:MAX_DIM
+                    # xsize = tuple(dim+MIN_SIZE-1:-1:MIN_SIZE...)
+                    xsize = ntuple(i->2,dim)
+                    ax = rand21(f,t,xsize)
+                    gx = nothing
+                    @testset "new-reduction $f $t outer" begin
+
+                    #@show f,t,dim,xsize
+                    @test gradcheck(f,ax; rtol=TOL1)
+                    if gpu() >= 0
+                        gx = KnetArray(ax)
+                        @test gradcheck(f, gx; rtol=TOL1)
+                        @test isapprox(f(ax),f(gx))
+                    end
+                    end
+                    #=@testset "new-reduction $f $t inner" begin
+                    # test all combinations
+                    for c in mapreduce(i->collect(combinas(1:dim,i)), vcat, 1:dim)
+                        #@show f,t,dim,xsize,c
+                        @test gradcheck(f, ax, c; rtol=TOL1)
+                        if gpu() >= 0 && gx != nothing
+                            @test gradcheck(f,gx,c; rtol=TOL1)
+                            @test isapprox(f(ax,c),Array(f(gx,c)))
+                        end
+                    end
+                    end=#
                 end
             end
         end

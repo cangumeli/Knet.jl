@@ -148,3 +148,16 @@ end
 
 Base.mean{T<:KnetArray}(a::Union{T, Rec{T}}) = sum(a) / length(a)
 Base.mean{T<:KnetArray}(a::Union{T, Rec{T}}, r) = (b=sum(a,r); (b*convert(eltype(b),length(b)/length(a))))
+Base.mean{T<:KnetArray}(f::Union{Function, Type}, a::Union{T, Rec{T}}) = sum(f, a) / length(a)
+
+
+function Base.var{T}(a::Union{Rec{T}, KnetArray{T}};
+                corrected::Bool=true, mean=nothing)
+    N = corrected ? (length(a) - 1) : length(a)
+    (mean == nothing) && (mean = Base.mean(a))
+    return sum(abs2, a .- mean) ./ N
+end
+
+Base.std{T}(a::Union{Rec{T}, KnetArray{T}};
+            corrected::Bool=true, mean=nothing) = sqrt.(var(a; corrected=corrected, mean=mean))
+
