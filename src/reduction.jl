@@ -161,3 +161,10 @@ end
 Base.std{T}(a::Union{Rec{T}, KnetArray{T}};
             corrected::Bool=true, mean=nothing) = sqrt.(var(a; corrected=corrected, mean=mean))
 
+
+function Base.var{T}(a::Union{Rec{T}, KnetArray{T}}, region;
+                corrected::Bool=true, mean=nothing)
+    N = corrected ? (length(a) - 1) : length(a)
+    (mean == nothing) && (mean = Base.mean(a, region))
+    return sum(abs2, a .- mean, region) ./ N
+end

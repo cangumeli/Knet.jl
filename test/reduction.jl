@@ -160,7 +160,8 @@ srand(42)
                     end
                     end
                     #=@testset "new-reduction $f $t inner" begin
-                    # test all combinations
+                    # test all combinations=#
+                    if f == var
                     for c in mapreduce(i->collect(combinas(1:dim,i)), vcat, 1:dim)
                         #@show f,t,dim,xsize,c
                         @test gradcheck(f, ax, c; rtol=TOL1)
@@ -169,7 +170,8 @@ srand(42)
                             @test isapprox(f(ax,c),Array(f(gx,c)))
                         end
                     end
-                    end=#
+                    end
+                    end
                 end
             end
         end
