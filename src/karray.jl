@@ -296,6 +296,81 @@ function cat{T}(d, a1::KnetVecOrMat{T}, a::KnetVecOrMat{T}...)
     end
 end
 
+
+function ccat(a::KnetArray...)
+    cdim = ndims(a[1]) - 1
+    sz = size(a[1])
+    lns = map(x->prod(size(x)[1:cdim]), a)
+    T = eltype(a[1])
+    Ds = sz[1:cdim-1]
+    N = sz[end]
+    if !all(x->size(x, collect(1:cdim-1)..., cdim+1) == (Ds..., N), a)
+        throw(DimensionMismatch("All dimensions except $cdim must be the same"))
+    end
+    C = sum(x->size(x,cdim), a)
+    y = KnetArray{T}(Ds..., C, N)
+    start = 1
+    for d = 1:N
+        for (li, ai) in zip(lns, a)
+            y[start:start+li-1] =  vec(mat(ai)[:, d])
+            start += li
+        end
+    end
+    return y
+end
+
+function ccat_back(i, dy, a...)
+    cdim = ndims(a[i]) - 1
+    sz = size(a[i])
+    lns = map(x->prod(size(x)[1:cdim]), a)
+    Ds = sz[1:cdim-1]
+    N = sz[end]
+    dai = similar(getval(a[i]), 
+                  (Ds..., size(a[i], cdim), N))
+    offset = i>1 ? sum(lns[1:i-1])+1 : 1
+    start = 1
+    step = prod(size(dai, Ds..., cdim))
+    for d = 1:N
+        dyi = mat(dy)[:, d]
+        dai[start:start+step-1] = dyi[offset:offset+lns[i]-1]
+        start += step
+    end
+    return dai
+end
+
+const KR = Union{KnetArray, Rec}
+let ccat_r = recorder(ccat)
+    global ccat
+    ccat(a::KR...) = ccat_r(a...)
+    ccat{N}(::Type{Grad{N}}, dy::KR, y::KR, a::KR...) = ccat_back(N, dy, a...)
+end
+
+function cat{T}(d, a1::KnetArray{T}, a::KnetArray{T}...)
+    nd = ndims(a1)
+    if !all(x->ndims(x)==nd, a)
+        throw(DimensionMismatch(
+            "cat: Different input dimensionalities not supported for KnetArray"))
+    end
+    if d == nd-1 || d == Val{nd-1}
+        ccat(a1, a...)
+    elseif isa(d, Number) #TODO: support Val?
+        fdims = d == 1 ? (1,) : size(a1)[1:d-1] #d=1 fix
+        ldims = size(a1)[d+1:end]
+        output_shape = (
+            fdims...,
+            sum(x->size(x,d), [a1, a...]),
+            ldims...
+        )
+        args = map(x->reshape(x, (fdims..., size(x, d), prod(ldims))),
+                   [a1, a...])
+        length(output_shape) > nd && (output_shape = output_shape[2:end]) #d=1 fix
+        reshape(ccat(args...), output_shape) 
+    else
+        error("cat($d,a...) not implemented.")
+    end
+end
+
+
 # Avoid using Base for unimplemented cat methods:
 
 using AutoGrad: NA # Union{Number,AbstractArray}

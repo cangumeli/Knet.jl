@@ -123,6 +123,31 @@ if gpu() >= 0
             @test size(reshape(a, :, 4)) == size(reshape(a, (:, 4))) == (2, 4)
             @test size(reshape(a, :, 1, 4)) == (2, 1,  4)
         end
+        
+        @testset "cat" begin
+            for nd = 3:6
+                for cdim = 1:nd, nargs = 1:3, dtype in (Float64, Float32)
+                    dims = [rand(1:5) for i=1:nd-1]
+                    args = []
+                    for i = 1:nargs
+                        dims_c = copy(dims)
+                        insert!(dims_c, cdim, rand(1:5))
+                        push!(args, rand(dtype, dims_c...))
+                    end
+                    args_gpu = map(ka, args)
+                    cpu_res = cat(cdim, args...)
+                    gpu_res = Array(cat(cdim, args_gpu...))
+                    @test size(gpu_res) == size(cpu_res)
+                    @test isapprox(mean(gpu_res .== cpu_res), 1.0)
+                    if dtype == Float32
+                        @test gradcheck((a)->cat(cdim, a...), args; rtol=0.1)
+                    else
+                        @test gradcheck((a)->cat(cdim, a...), args)
+                    end
+                end
+            end
+        end
+
     end
 end
 
