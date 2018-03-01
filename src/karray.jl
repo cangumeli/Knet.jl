@@ -358,7 +358,7 @@ function cat{T}(d, a1::KnetArray{T}, a::KnetArray{T}...)
         ldims = size(a1)[d+1:end]
         output_shape = (
             fdims...,
-            sum(x->size(x,d), [a1, a...]),
+            sum(x->size(x, d), [a1, a...]),
             ldims...
         )
         args = map(x->reshape(x, (fdims..., size(x, d), prod(ldims))),
