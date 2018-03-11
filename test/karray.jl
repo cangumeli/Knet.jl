@@ -139,9 +139,9 @@ if gpu() >= 0
                 @test size(gpu_res) == size(cpu_res)
                 @test isapprox(mean(gpu_res .== cpu_res), 1.0)
                 if dtype == Float32
-                    @test gradcheck((a)->cat(cdim, a...), args; rtol=0.1)
+                    @test gradcheck((a)->cat(cdim, a...), args_gpu; rtol=0.1)
                 else
-                    @test gradcheck((a)->cat(cdim, a...), args)
+                    @test gradcheck((a)->cat(cdim, a...), args_gpu)
                 end
             end
         end
